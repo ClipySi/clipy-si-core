@@ -1,0 +1,45 @@
+[package]
+name = "clipy-si-core"
+description = "Shared cross-platform core for ClipySi: redaction, crypto, record/vault formats, and sync rules."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "clipy_si_core"
+# M8.1 ships the pure-Rust logic only. M8.2 adds "staticlib"/"cdylib" + uniffi for
+# the Swift/UniFFI binding without touching the logic crate's public API.
+crate-type = ["lib"]
+
+# Default features (Unicode + perf). M8.2 can trim features for FFI artifact size.
+[dependencies]
+regex = "1"
+# M10 crypto (foundation freeze). RustCrypto, pure-safe — the per-crate `forbid(unsafe_code)`
+# below applies to OUR source only; dependencies may use `unsafe` internally. aes-gcm is built
+# `default-features = false` so it pulls NO RNG (`getrandom`): the core invariant is "no RNG",
+# nonces are supplied by the caller. The `zeroize` feature wipes the AES key on drop.
+aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc", "zeroize"] }
+hmac = "0.12"
+sha2 = "0.10"
+hkdf = "0.12"
+# M10.2 vault-key KDF. PBKDF2-HMAC-SHA256 (no RNG / no password-hash helpers → default-features
+# off). NFC-normalise the passphrase so the same phrase derives the same key on every OS (M12
+# cross-platform prereq). zeroize wipes the derived master before it leaves the derivation scope.
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+unicode-normalization = "0.1"
+zeroize = "1"
+# M10.3 record/vault format. The header & manifest are JSON (human-inspectable, scalar-only); the
+# encrypted body uses an explicit binary layout (record/canonical.rs), NOT CBOR — the canonical-CBOR
+# determinism risk was the reason (design §13.1 FIX-1). uuid carries record/device ids (no RNG: the
+# shell mints them; `default-features = false` keeps generation out of the core).
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", default-features = false, features = ["serde"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

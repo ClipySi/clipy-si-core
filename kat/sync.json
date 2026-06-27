@@ -1,0 +1,47 @@
+{
+  "_comment": "M11.1 sync merge-rule Known-Answer-Test. Pins the HLC semantics, the merge case table (design m11 §5.2 as amended by §14 Rev 2.1: tombstone-always-wins, RecordTombstoneOnly, sync_hash dedupe), GC eligibility (incl. the seconds-vs-millis unit conversion) and stale-rejoin. Every binding (Swift/Kotlin/.NET) must reproduce these decisions. Nodes are tiny test UUIDs. All synthetic.",
+  "node_a": "00000000-0000-0000-0000-000000000001",
+  "node_b": "00000000-0000-0000-0000-000000000002",
+  "hlc_next": [
+    { "note": "fresh start", "prev": null, "now_millis": 1000, "expect": { "wall_millis": 1000, "counter": 0 } },
+    { "note": "same wall increments counter", "prev": { "wall_millis": 1000, "counter": 3 }, "now_millis": 1000, "expect": { "wall_millis": 1000, "counter": 4 } },
+    { "note": "backwards clock keeps monotonic", "prev": { "wall_millis": 1000, "counter": 3 }, "now_millis": 500, "expect": { "wall_millis": 1000, "counter": 4 } },
+    { "note": "forward clock resets counter", "prev": { "wall_millis": 1000, "counter": 3 }, "now_millis": 2000, "expect": { "wall_millis": 2000, "counter": 0 } },
+    { "note": "counter saturation rolls wall", "prev": { "wall_millis": 1000, "counter": 4294967295 }, "now_millis": 1000, "expect": { "wall_millis": 1001, "counter": 0 } }
+  ],
+  "hlc_receive": [
+    { "note": "remote ahead within drift adopts remote wall", "local": { "wall_millis": 1000, "counter": 5 }, "remote": { "wall_millis": 2000, "counter": 7 }, "now_millis": 1500, "expect": { "wall_millis": 2000, "counter": 8 } },
+    { "note": "skewed remote clamped to now+24h", "local": { "wall_millis": 1000, "counter": 0 }, "remote": { "wall_millis": 999999999999, "counter": 0 }, "now_millis": 1000, "expect": { "wall_millis": 86401000, "counter": 1 } },
+    { "note": "all equal walls take max counter + 1", "local": { "wall_millis": 5000, "counter": 2 }, "remote": { "wall_millis": 5000, "counter": 9 }, "now_millis": 5000, "expect": { "wall_millis": 5000, "counter": 10 } },
+    { "note": "now ahead of both resets counter", "local": { "wall_millis": 1000, "counter": 5 }, "remote": { "wall_millis": 2000, "counter": 7 }, "now_millis": 9000, "expect": { "wall_millis": 9000, "counter": 0 } }
+  ],
+  "hlc_compare": [
+    { "note": "wall dominates", "a": { "wall_millis": 2, "counter": 0, "node": "a" }, "b": { "wall_millis": 1, "counter": 9, "node": "b" }, "expect": "greater" },
+    { "note": "counter breaks wall tie", "a": { "wall_millis": 1, "counter": 1, "node": "a" }, "b": { "wall_millis": 1, "counter": 2, "node": "b" }, "expect": "less" },
+    { "note": "node breaks full tie (a < b)", "a": { "wall_millis": 1, "counter": 1, "node": "a" }, "b": { "wall_millis": 1, "counter": 1, "node": "b" }, "expect": "less" }
+  ],
+  "merge": [
+    { "note": "#1 unknown live, no dup -> apply", "local": { "applied": false, "applied_deleted": false, "live_dup": false, "tomb_dup_hlc": null }, "remote_deleted": false, "remote_hlc": { "wall_millis": 10, "counter": 0, "node": "b" }, "expect": "apply_remote" },
+    { "note": "#2 unknown tombstone -> record only (zombie guard)", "local": { "applied": false, "applied_deleted": false, "live_dup": false, "tomb_dup_hlc": null }, "remote_deleted": true, "remote_hlc": { "wall_millis": 10, "counter": 0, "node": "b" }, "expect": "record_tombstone_only" },
+    { "note": "#3 known live + remote live -> skip (records immutable)", "local": { "applied": true, "applied_deleted": false, "live_dup": false, "tomb_dup_hlc": null }, "remote_deleted": false, "remote_hlc": { "wall_millis": 99, "counter": 0, "node": "b" }, "expect": "skip" },
+    { "note": "#6 known live + tombstone -> delete wins unconditionally", "local": { "applied": true, "applied_deleted": false, "live_dup": false, "tomb_dup_hlc": null }, "remote_deleted": true, "remote_hlc": { "wall_millis": 1, "counter": 0, "node": "b" }, "expect": "apply_tombstone" },
+    { "note": "#10 known deleted + tombstone -> skip (idempotent)", "local": { "applied": true, "applied_deleted": true, "live_dup": false, "tomb_dup_hlc": null }, "remote_deleted": true, "remote_hlc": { "wall_millis": 50, "counter": 0, "node": "b" }, "expect": "skip" },
+    { "note": "#10b known deleted + late live file -> skip (transport-race zombie guard)", "local": { "applied": true, "applied_deleted": true, "live_dup": false, "tomb_dup_hlc": null }, "remote_deleted": false, "remote_hlc": { "wall_millis": 50, "counter": 0, "node": "b" }, "expect": "skip" },
+    { "note": "#11 unknown live + live same-content dup -> suppress insert", "local": { "applied": false, "applied_deleted": false, "live_dup": true, "tomb_dup_hlc": null }, "remote_deleted": false, "remote_hlc": { "wall_millis": 10, "counter": 0, "node": "b" }, "expect": "skip_duplicate_content" },
+    { "note": "#12 re-copy AFTER wipe of same content -> apply (new record)", "local": { "applied": false, "applied_deleted": false, "live_dup": false, "tomb_dup_hlc": { "wall_millis": 100, "counter": 0, "node": "a" } }, "remote_deleted": false, "remote_hlc": { "wall_millis": 150, "counter": 0, "node": "b" }, "expect": "apply_remote" },
+    { "note": "#12b capture BEFORE wipe of same content -> wipe covers it", "local": { "applied": false, "applied_deleted": false, "live_dup": false, "tomb_dup_hlc": { "wall_millis": 100, "counter": 0, "node": "a" } }, "remote_deleted": false, "remote_hlc": { "wall_millis": 50, "counter": 0, "node": "b" }, "expect": "skip_duplicate_content" },
+    { "note": "#12c equal to wipe stamp -> covered (not Greater)", "local": { "applied": false, "applied_deleted": false, "live_dup": false, "tomb_dup_hlc": { "wall_millis": 100, "counter": 0, "node": "a" } }, "remote_deleted": false, "remote_hlc": { "wall_millis": 100, "counter": 0, "node": "a" }, "expect": "skip_duplicate_content" },
+    { "note": "#12d re-copy after wipe but live dup exists -> suppress", "local": { "applied": false, "applied_deleted": false, "live_dup": true, "tomb_dup_hlc": { "wall_millis": 100, "counter": 0, "node": "a" } }, "remote_deleted": false, "remote_hlc": { "wall_millis": 150, "counter": 0, "node": "b" }, "expect": "skip_duplicate_content" }
+  ],
+  "gc": [
+    { "note": "young tombstone never GC'd", "tomb_hlc_wall_millis": 86400000, "devices_last_seen_secs": [], "now_secs": 2592000, "expect": false },
+    { "note": "old + no devices -> eligible", "tomb_hlc_wall_millis": 86400000, "devices_last_seen_secs": [], "now_secs": 3196800, "expect": true },
+    { "note": "fresh device acked (unit conversion s*1000 vs ms)", "tomb_hlc_wall_millis": 86400000, "devices_last_seen_secs": [3369600], "now_secs": 3456000, "expect": true },
+    { "note": "fresh device NOT acked blocks", "tomb_hlc_wall_millis": 1728000000, "devices_last_seen_secs": [1036800], "now_secs": 3542400, "expect": false },
+    { "note": "stale device ignored", "tomb_hlc_wall_millis": 1728000000, "devices_last_seen_secs": [1036800], "now_secs": 4838400, "expect": true }
+  ],
+  "rejoin": [
+    { "note": "stale self deletes locally", "self_last_seen_secs": 0, "now_secs": 2678400, "expect": "delete_locally" },
+    { "note": "fresh self repushes (provider data loss)", "self_last_seen_secs": 864000, "now_secs": 2678400, "expect": "repush" }
+  ]
+}

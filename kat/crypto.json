@@ -1,0 +1,59 @@
+{
+  "_comment": "M10.1 crypto Known-Answer-Test. Language-independent: every binding (Swift/Kotlin/.NET) must satisfy it. AEAD/HMAC expected values were produced by Apple CryptoKit (the interop kill-switch: existing CryptoKit blobs must open in the Rust core). HKDF expected values were produced by an independent RFC-5869 reference (Python hashlib). All synthetic — no real secrets.",
+  "key_hex": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a",
+  "aead_combined": {
+    "_layout": "CryptoKit AES.GCM .combined = nonce(12) || ciphertext || tag(16)",
+    "nonce_hex": "000000000000000000000000",
+    "cases": [
+      {
+        "note": "ascii",
+        "plaintext_hex": "636c6970792d7369207661756c7420696e7465726f70204b4154",
+        "combined_hex": "000000000000000000000000bbcd4bcad0323cd658881d47c6d17408e1addacd1704a49a24807cdee49caa3a62a1a8120aa429168200"
+      },
+      {
+        "note": "empty",
+        "plaintext_hex": "",
+        "combined_hex": "000000000000000000000000b9822f2779cdc31de04f2a47cf6e1923"
+      },
+      {
+        "note": "one byte",
+        "plaintext_hex": "78",
+        "combined_hex": "000000000000000000000000a097d3ca4270452e941d9b797a2851c34e"
+      },
+      {
+        "note": "multibyte utf8",
+        "plaintext_hex": "e697a5e69cace8aa9ee381aee382afe383aae38383e38397e58685e5aeb920e28094207365637265743f206e6f2e",
+        "combined_hex": "0000000000000000000000003e36875c35b3a715e61dfd9c4927fb820c735c3cfb9707468052f95b3b6951ba6c829f39c35030dc6b2a05d6c83be82a32990dac6ff62d093db6eb99cd8c"
+      }
+    ]
+  },
+  "hmac_sha256": {
+    "_note": "content_hash dedupe key; byte-identical to CryptoKit HMAC<SHA256>",
+    "cases": [
+      {
+        "note": "canonical payload sample",
+        "input_hex": "7075626c69632e757466382d706c61696e2d746578740a68656c6c6f",
+        "hmac_hex": "af421c8ba2ef6fc9d40f917dc3bffdd33716121f102a9a2669b6d9d91c9ca429"
+      },
+      {
+        "note": "empty",
+        "input_hex": "",
+        "hmac_hex": "25e570b039a294705747f0783f32e9b538be395f8713fbcbf346844d84bc78ad"
+      },
+      {
+        "note": "multibyte",
+        "input_hex": "e697a5e69cace8aa9e",
+        "hmac_hex": "c3776fcfdefd7e59cbf9007e638e518dd2f17650e39dc1a8d51b2985f2ea5096"
+      }
+    ]
+  },
+  "hkdf_sha256_expand": {
+    "_note": "domain-separated vault subkeys (RFC 5869 expand-only over a 32-byte PRK)",
+    "master_hex": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a",
+    "cases": [
+      { "info_utf8": "clipysi/v1/cclip",  "okm_hex": "308d99bf9df147df76ddb3aa4f4460e8c9afb4213480440b8a22a0ef2bec8e3d" },
+      { "info_utf8": "clipysi/v1/dedupe", "okm_hex": "09f5621933464027de8e4f4299233c93cf4d049d3b6749491707085b5bd6e847" },
+      { "info_utf8": "clipysi/v1/device", "okm_hex": "ff15d1fe1b4c4a9be321c5a85a3b79b6d4c28fd2f824c6529a0f10d5c6f5b085" }
+    ]
+  }
+}

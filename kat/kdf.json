@@ -1,0 +1,11 @@
+{
+  "_comment": "M10.2 KDF Known-Answer-Test. PBKDF2-HMAC-SHA256 over the NFC-normalised passphrase. Expected keys produced by an independent reference (Python hashlib.pbkdf2_hmac). Iterations are small (4096) so the suite stays fast — production calibrates >=600k (design §13.2). nfc-composed and nfc-decomposed are the SAME passphrase in two Unicode forms and MUST derive the same key. Synthetic — no real passphrases.",
+  "salt_hex": "0123456789abcdef0123456789abcdef",
+  "cases": [
+    { "note": "ascii",          "passphrase_hex": "636f727265637420686f727365206261747465727920737461706c65", "iterations": 4096, "key_hex": "92e29370e3b7a5874bb114fb50896a71aed34cadac195b00d8da1fefd8215ce0" },
+    { "note": "nfc-composed",    "passphrase_hex": "636166c3a9", "iterations": 4096, "key_hex": "1584ac1cf74776fc49f55a07cbf2bfadaa6628028f9cebc6f114779fc7843fcd" },
+    { "note": "nfc-decomposed",  "passphrase_hex": "63616665cc81", "iterations": 4096, "key_hex": "1584ac1cf74776fc49f55a07cbf2bfadaa6628028f9cebc6f114779fc7843fcd" },
+    { "note": "emoji",           "passphrase_hex": "7061f09f94907373", "iterations": 4096, "key_hex": "e062eb766fd6911b17ff430d244745d73da106b0e75096bb1e0014a7da7d2615" },
+    { "note": "long-200",        "passphrase_hex": "7878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878", "iterations": 4096, "key_hex": "9b15570957bcd236a99614965ecd6a726cecdc343003ae7e71693fa211ba0384" }
+  ]
+}

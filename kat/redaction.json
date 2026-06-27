@@ -1,0 +1,146 @@
+{
+  "_comment": "Language-independent Known-Answer-Test vectors for clipy-si-core redaction. Every binding (Rust unit test today; Swift/Kotlin/.NET conformance later) checks these against default_config(). All secret-like values are SYNTHETIC (format-valid, never real). Asserts use default style = Full.",
+  "rules_version": 1,
+  "cases": [
+    {
+      "text": "ghp_0000000000000000000000000000000000AB",
+      "is_secret": true,
+      "kind": "GithubToken",
+      "mask_full": "••••••••••••••••••••••••••••••••••••••••"
+    },
+    {
+      "text": "AKIAIOSFODNN7EXAMPLE",
+      "is_secret": true,
+      "kind": "AwsAccessKeyId"
+    },
+    {
+      "text": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U",
+      "is_secret": true,
+      "kind": "Jwt"
+    },
+    {
+      "text": "xoxb-2222222222-3333333333-aBcDeFgHiJkLmNoPqRsTuVwX",
+      "is_secret": true,
+      "kind": "SlackToken"
+    },
+    {
+      "text": "AIzaSyDaGmWKa4JsXZ-HjGw7ISLn_3namBGewQe",
+      "is_secret": true,
+      "kind": "GoogleApiKey"
+    },
+    {
+      "text": "https://x.test/cb?access_token=abc123def456ghi789",
+      "is_secret": true,
+      "kind": "UrlEmbeddedSecret"
+    },
+    {
+      "text": "password=hunter2zzzz",
+      "is_secret": true,
+      "kind": "KeyValueSecret"
+    },
+    {
+      "text": "-----BEGIN OPENSSH PRIVATE KEY-----",
+      "is_secret": true,
+      "kind": "PrivateKeyBlock"
+    },
+    {
+      "text": "VRJN9wVGFYGW2WmQzCudiH7YFjS1on43XkMtECqOxSF2",
+      "is_secret": true,
+      "kind": "HighEntropyString",
+      "note": "synthetic random 44-char token (no known prefix) — caught by the entropy fallback"
+    },
+    {
+      "text": "Please remember to buy milk and eggs today",
+      "is_secret": false,
+      "note": "ordinary prose must never be masked"
+    },
+    {
+      "text": "これは普通の日本語の長い文章でマスクされてはいけない",
+      "is_secret": false,
+      "note": "non-ASCII prose has no token run"
+    },
+    {
+      "text": "550e8400-e29b-41d4-a716-446655440000",
+      "is_secret": false,
+      "note": "UUID — hyphens split runs below the length floor"
+    },
+    {
+      "text": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "is_secret": false,
+      "note": "SHA-256 hex digest is not a secret"
+    },
+    {
+      "text": "5d41402abc4b2a76b9719d911017c592",
+      "is_secret": false,
+      "note": "MD5 hex digest is not a secret"
+    },
+    {
+      "text": "https://example.com/path?page=2&sort=asc",
+      "is_secret": false,
+      "note": "URL with no sensitive query param"
+    },
+    {
+      "text": "abcdefghijklmnopqrstuvwxyzabcdef",
+      "is_secret": false,
+      "note": "single-class long string fails the class-count guard"
+    },
+    {
+      "text": "sk_live_4eC39HqLyjWDarjtT1zdp7dc",
+      "is_secret": true,
+      "kind": "StripeKey"
+    },
+    {
+      "text": "glpat-ABCDEFGHIJ1234567890",
+      "is_secret": true,
+      "kind": "GitlabToken"
+    },
+    {
+      "text": "Authorization: Bearer mF_9.B5f-4.1JqM",
+      "is_secret": true,
+      "kind": "BearerToken"
+    },
+    {
+      "text": "GOCSPX-1234567890abcdefghijklmn",
+      "is_secret": true,
+      "kind": "GoogleApiKey",
+      "note": "Google OAuth client secret"
+    },
+    {
+      "text": "postgres://admin:S3cr3tPass@db.example.com:5432/mydb",
+      "is_secret": true,
+      "kind": "UrlEmbeddedSecret",
+      "note": "connection-string userinfo password"
+    },
+    {
+      "text": "npm_0123456789abcdefghijklmnopqrstuvwxyz",
+      "is_secret": true,
+      "kind": "ApiToken",
+      "note": "npm token (distinctive prefix)"
+    },
+    {
+      "text": "Authorization: basic understanding required",
+      "is_secret": false,
+      "note": "prose after an authorization: label is not a credential"
+    },
+    {
+      "text": "https://help.site/page?token=getting-started-guide",
+      "is_secret": false,
+      "note": "benign URL token value (no secret-like signal)"
+    },
+    {
+      "text": "password: string",
+      "is_secret": false,
+      "note": "type annotation, not a credential value"
+    },
+    {
+      "text": "postgres://USERNAME:PASSWORD@HOST:5432/DB",
+      "is_secret": false,
+      "note": "connection-string doc template with placeholder creds"
+    },
+    {
+      "text": "data:image/png;base64,iVBORw0KGgo/AAANSUhEUg//AAAAEAA+AAABCAYAAAAf/FcSJ123XyZ==",
+      "is_secret": false,
+      "note": "inline data: URI image payload (contains '/') is excluded"
+    }
+  ]
+}

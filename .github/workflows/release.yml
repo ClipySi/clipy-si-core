@@ -1,0 +1,36 @@
+name: Release XCFramework
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish XCFramework
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Build XCFramework
+        run: ./build-xcframework.sh
+      - name: Package XCFramework
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            bindings/swift/ClipySiCore/ClipySiCoreFFI.xcframework \
+            ClipySiCoreFFI.xcframework.zip
+          swift package compute-checksum ClipySiCoreFFI.xcframework.zip > CHECKSUMS.sha256
+          shasum -a 256 ClipySiCoreFFI.xcframework.zip >> CHECKSUMS.sha256
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            ClipySiCoreFFI.xcframework.zip \
+            CHECKSUMS.sha256 \
+            --title "ClipySi Core ${GITHUB_REF_NAME}" \
+            --notes "ClipySiCore XCFramework release for ${GITHUB_REF_NAME}."

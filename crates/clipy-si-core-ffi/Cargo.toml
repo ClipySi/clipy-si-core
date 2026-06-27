@@ -1,0 +1,31 @@
+[package]
+name = "clipy-si-core-ffi"
+description = "UniFFI binding surface for clipy-si-core (Swift/Kotlin). Thin wrapper; no logic."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "clipy_si_core_ffi"
+# cdylib: read by library-mode `uniffi-bindgen` and for local dylib testing.
+# staticlib: linked into the XCFramework slices (arm64 + x86_64).
+# lib: lets the bindgen binary and unit tests reach the crate.
+crate-type = ["lib", "staticlib", "cdylib"]
+
+[dependencies]
+clipy-si-core = { path = "../clipy-si-core" }
+# `cli` provides `uniffi::uniffi_bindgen_main()` for the bundled bindgen binary.
+uniffi = { version = "0.29", features = ["cli"] }
+# M10.4: UUIDs cross the FFI as strings; this parses/validates them in the thin wrapper.
+uuid = { version = "1", default-features = false }
+
+# The bundled binding generator. Run in library mode against the built cdylib:
+#   cargo run --bin uniffi-bindgen -- generate --library <dylib> --language swift --out-dir <dir>
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

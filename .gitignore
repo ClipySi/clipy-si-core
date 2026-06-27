@@ -1,0 +1,10 @@
+/target
+**/*.rs.bk
+Cargo.lock.orig
+
+# Generated FFI binary artifact (~114 MB; rebuild with ./build-xcframework.sh).
+# The generated Swift glue (Sources/ClipySiCore/clipy_si_core_ffi.swift) IS committed.
+bindings/swift/ClipySiCore/ClipySiCoreFFI.xcframework/
+# SwiftPM build output of the local binding package.
+bindings/swift/ClipySiCore/.build/
+bindings/swift/ClipySiCore/.swiftpm/

@@ -1,0 +1,43 @@
+name: Core CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: Rust fmt, clippy, and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: cargo test
+
+  swift-kat:
+    name: XCFramework and Swift KAT
+    runs-on: macos-latest
+    if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Build XCFramework
+        run: ./build-xcframework.sh
+      - name: Swift KAT tests
+        working-directory: bindings/swift/ClipySiCore
+        run: swift test
+      - name: Generated bindings are current
+        run: git diff --exit-code

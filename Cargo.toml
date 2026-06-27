@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = ["crates/clipy-si-core", "crates/clipy-si-core-ffi"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/ClipySi/clipy-si-core"
+rust-version = "1.80"
+
+# Small, predictable release artifacts for the FFI builds (M8.2+).
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+# NOTE: intentionally NOT `panic = "abort"`. UniFFI wraps each exported call in
+# `catch_unwind` to convert a Rust panic into a clean FFI error; with `abort` that
+# becomes a no-op and any panic would take down the host app. `unwind` (the default)
+# keeps the boundary safe at a small size cost.
+strip = true
