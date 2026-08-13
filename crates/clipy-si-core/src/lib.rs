@@ -22,8 +22,8 @@ mod hexutil;
 
 pub use error::CoreError;
 pub use redaction::{
-    default_config, detect_secrets, is_secret, mask, rules_version, user_rule_errors, Confidence,
-    MaskConfig, MaskStyle, SecretKind, SecretMatch, UserRule,
+    default_config, detect_secrets, evaluate, is_secret, mask, rules_version, user_rule_errors,
+    Confidence, MaskConfig, MaskEvaluation, MaskStyle, SecretKind, SecretMatch, UserRule,
 };
 
 pub use crypto::{content_hash, hkdf_subkey, local_open, local_seal, KEY_LEN, NONCE_LEN, TAG_LEN};

@@ -172,6 +172,32 @@ pub fn is_secret(text: String, config: MaskConfig) -> bool {
     core_lib::is_secret(&text, &cfg)
 }
 
+/// One-pass verdict + display. Mirrors `core_lib::MaskEvaluation` (M-UI.11 P1-R).
+#[derive(uniffi::Record, Clone, Debug)]
+pub struct MaskEvaluation {
+    /// A secret was detected (like `is_secret`, independent of `config.enabled`).
+    pub is_secret: bool,
+    /// What to render (identical to `mask` for the same text/config).
+    pub display: String,
+}
+
+impl From<core_lib::MaskEvaluation> for MaskEvaluation {
+    fn from(e: core_lib::MaskEvaluation) -> Self {
+        MaskEvaluation {
+            is_secret: e.is_secret,
+            display: e.display,
+        }
+    }
+}
+
+/// Evaluate `text` once: the detector runs a single time and both `is_secret` and `display`
+/// come from that one result — equivalent to calling `is_secret` then `mask`, at half the cost.
+#[uniffi::export]
+pub fn evaluate(text: String, config: MaskConfig) -> MaskEvaluation {
+    let cfg: core_lib::MaskConfig = config.into();
+    core_lib::evaluate(&text, &cfg).into()
+}
+
 /// Apply `config.style` and return the display string (original text when `enabled=false`
 /// or nothing is detected).
 #[uniffi::export]

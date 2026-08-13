@@ -82,4 +82,33 @@ final class KATConformanceTests: XCTestCase {
         let secret = "ghp_0000000000000000000000000000000000AB"
         XCTAssertEqual(mask(text: secret, config: config), secret)
     }
+
+    /// M-UI.11 P1-R: the one-pass `evaluate` must agree with the two-pass pair on the SAME
+    /// vectors (which are never regenerated for a new API), through the Swift binding.
+    func testKATConformanceOnePassEvaluate() throws {
+        let kat = try loadKAT()
+        let config = defaultConfig()
+        for c in kat.cases {
+            let e = evaluate(text: c.text, config: config)
+            XCTAssertEqual(e.isSecret, c.isSecret,
+                           "evaluate.isSecret mismatch for: \(c.text.prefix(24))…")
+            XCTAssertEqual(e.display, mask(text: c.text, config: config),
+                           "evaluate.display != mask for: \(c.text.prefix(24))…")
+            if let expectedMask = c.maskFull {
+                XCTAssertEqual(e.display, expectedMask,
+                               "evaluate mask_full mismatch for: \(c.text.prefix(24))…")
+            }
+        }
+    }
+
+    /// The verdict stays truthful when masked display is off (the app's sensitivity flag and
+    /// AuthGate depend on it), while the display is verbatim.
+    func testEvaluateDisabledKeepsVerdictAndText() {
+        var config = defaultConfig()
+        config.enabled = false
+        let secret = "ghp_0000000000000000000000000000000000AB"
+        let e = evaluate(text: secret, config: config)
+        XCTAssertTrue(e.isSecret)
+        XCTAssertEqual(e.display, secret)
+    }
 }

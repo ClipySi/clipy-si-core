@@ -1,3 +1,8 @@
+# NOTE: this publishes a release on the PRIVATE core repo — an archival convenience only.
+# It is NOT the distribution path the macOS app consumes: the app's SwiftPM binaryTarget
+# points at an asset uploaded (manually, from the locally built zip whose checksum is the
+# one committed) to the PUBLIC clipy-si-macos repository's Releases. Pushing a tag here
+# does not update anything the app resolves.
 name: Release XCFramework
 
 on:

@@ -73,3 +73,29 @@ fn kat_vectors() {
         }
     }
 }
+
+/// M-UI.11 P1-R: the one-pass `evaluate` API must satisfy the SAME vectors as the two-pass
+/// pair it replaces — the vectors are the contract and are NOT regenerated for a new API.
+#[test]
+fn kat_vectors_one_pass_evaluate() {
+    let cfg = default_config();
+    for c in &load().cases {
+        let label = c.note.as_deref().unwrap_or("-");
+        let e = clipy_si_core::evaluate(&c.text, &cfg);
+        assert_eq!(
+            e.is_secret, c.is_secret,
+            "evaluate.is_secret mismatch (note: {label})"
+        );
+        assert_eq!(
+            e.display,
+            mask(&c.text, &cfg),
+            "evaluate.display != mask (note: {label})"
+        );
+        if let Some(expected) = &c.mask_full {
+            assert_eq!(
+                &e.display, expected,
+                "evaluate mask_full mismatch (note: {label})"
+            );
+        }
+    }
+}

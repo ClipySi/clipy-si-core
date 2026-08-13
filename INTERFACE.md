@@ -8,7 +8,9 @@ is the human-readable guide for host applications and future platform shells.
 
 `clipy-si-core` owns deterministic, cross-platform logic only:
 
-- secret detection and display masking
+- secret detection and display masking (`is_secret`/`mask`, plus the one-pass
+  `evaluate` returning both the verdict and the display from a single detector run;
+  the three are contractually equivalent and the KAT vectors pin all of them)
 - local encryption/decryption helpers used by the app
 - vault passphrase KDF and key derivation descriptors
 - record envelope and vault manifest encoding/decoding

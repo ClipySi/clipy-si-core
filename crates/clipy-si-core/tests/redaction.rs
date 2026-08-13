@@ -128,3 +128,171 @@ fn empty_text_is_safe() {
     assert_eq!(mask("", &default_config()), "");
     assert!(detect_secrets("", &default_config()).is_empty());
 }
+
+// -------------------------------------------------------------------------------------------
+// One-pass `evaluate` parity (M-UI.11 P1-R). The KAT vectors carry a single mask_full case, so
+// the primary display-parity guarantee is this grid: every config/style combination over a
+// corpus that exercises every detector source and the mask-length edge cases.
+//
+// `mask` currently *delegates* to `evaluate`, so `e.display == mask(...)` alone would be
+// tautological. The grid therefore also checks both against `expected_display`, a
+// test-local re-implementation of the masking rules whose verdict comes from
+// `detect_secrets` (an API `evaluate` does not call) — independent ground truth that stays
+// meaningful even if `evaluate` is later re-implemented without the delegation.
+// -------------------------------------------------------------------------------------------
+
+use clipy_si_core::{evaluate, MaskEvaluation};
+
+/// Independent oracle: what the display must be, per the documented masking rules.
+fn expected_display(text: &str, cfg: &MaskConfig) -> String {
+    let secret = !detect_secrets(text, cfg).is_empty();
+    if !cfg.enabled || !secret {
+        return text.to_string();
+    }
+    let chars: Vec<char> = text.chars().collect();
+    let bullet = |n: usize| "\u{2022}".repeat(n);
+    match cfg.style {
+        MaskStyle::Full => bullet(chars.len()),
+        MaskStyle::Prefix2 if chars.len() > 2 => {
+            chars[..2].iter().collect::<String>() + &bullet(chars.len() - 2)
+        }
+        MaskStyle::Suffix4 if chars.len() > 4 => {
+            bullet(chars.len() - 4) + &chars[chars.len() - 4..].iter().collect::<String>()
+        }
+        // len <= keep: never echo through the keep window.
+        _ => bullet(chars.len()),
+    }
+}
+
+/// Inputs covering: empty, plain, provider token, entropy heuristic, URL/key-value secrets,
+/// multi-secret, Unicode (multibyte, combining marks, ZWJ), data-URI suppression, and
+/// user-rule matches shorter than the Prefix2/Suffix4 keep counts.
+fn parity_corpus() -> Vec<String> {
+    vec![
+        String::new(),
+        "just a normal clipboard note".into(),
+        GH.into(),
+        format!("token {GH} pasted"),
+        "VRJN9wVGFYGW2WmQzCudiH7YFjS1on43XkMtECqOxSF2".into(),
+        "see https://x.test/cb?password=superSecretValue123 now".into(),
+        "password: superSecretValue123".into(),
+        format!("{GH} and https://x.test/cb?password=superSecretValue123"),
+        format!("🔑🔑🔑🔑 {GH}"),
+        format!("cafe\u{301} {GH}"),               // combining acute on the prefix
+        format!("👨\u{200D}👩\u{200D}👧 {GH}"),    // ZWJ family before the token
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==".into(),
+        "ab".into(),   // user-rule secret, len == Prefix2 keep
+        "abc".into(),  // user-rule secret, len < Suffix4 keep
+    ]
+}
+
+fn parity_configs() -> Vec<MaskConfig> {
+    // A rule that turns the tiny "ab"/"abc" inputs into secrets, driving keep_prefix/keep_suffix
+    // through their len <= keep branches via the public API.
+    let short_rule = UserRule {
+        name: "short".into(),
+        regex: r"^abc?$".into(),
+        kind_label: "Short".into(),
+    };
+    let mut configs = Vec::new();
+    for style in [MaskStyle::Full, MaskStyle::Prefix2, MaskStyle::Suffix4] {
+        for enabled in [true, false] {
+            for rules in [Vec::new(), vec![short_rule.clone()]] {
+                configs.push(MaskConfig {
+                    enabled,
+                    style,
+                    user_rules: rules,
+                    ..default_config()
+                });
+            }
+        }
+    }
+    configs
+}
+
+/// `evaluate` == (`is_secret`, `mask`) == the independent oracle over the whole grid, plus
+/// the shape invariants a masked display must satisfy.
+#[test]
+fn evaluate_matches_two_pass_everywhere() {
+    for cfg in parity_configs() {
+        for text in parity_corpus() {
+            let e: MaskEvaluation = evaluate(&text, &cfg);
+            // Independent ground truth: verdict via detect_secrets, display via the
+            // test-local oracle. These hold regardless of how evaluate/mask are wired.
+            assert_eq!(
+                e.is_secret,
+                !detect_secrets(&text, &cfg).is_empty(),
+                "verdict vs detect_secrets (enabled={}, style={:?})",
+                cfg.enabled,
+                cfg.style
+            );
+            assert_eq!(
+                e.display,
+                expected_display(&text, &cfg),
+                "display vs oracle (enabled={}, style={:?})",
+                cfg.enabled,
+                cfg.style
+            );
+            // Cross-API equality (currently true by delegation; guards a future refactor
+            // that re-implements either side independently).
+            assert_eq!(e.is_secret, is_secret(&text, &cfg));
+            assert_eq!(e.display, mask(&text, &cfg));
+            if !cfg.enabled || !e.is_secret {
+                assert_eq!(e.display, text, "unmasked display must be verbatim");
+            } else {
+                assert_eq!(
+                    e.display.chars().count(),
+                    text.chars().count(),
+                    "masked display keeps the char count"
+                );
+                assert!(
+                    e.display.chars().any(|c| c == '\u{2022}'),
+                    "masked display must contain bullets"
+                );
+            }
+        }
+    }
+}
+
+/// The verdict stays truthful when masked display is off (sensitivity flags / auth gates
+/// depend on it), while the display is verbatim.
+#[test]
+fn evaluate_disabled_keeps_verdict_and_text() {
+    let cfg = MaskConfig {
+        enabled: false,
+        ..default_config()
+    };
+    let e = evaluate(GH, &cfg);
+    assert!(e.is_secret);
+    assert_eq!(e.display, GH);
+}
+
+/// Style edge: a secret no longer than the kept prefix/suffix must be fully bulleted, never
+/// echoed back through the "keep" window.
+#[test]
+fn evaluate_short_secret_never_leaks_through_keep_window() {
+    let short_rule = UserRule {
+        name: "short".into(),
+        regex: r"^abc?$".into(),
+        kind_label: "Short".into(),
+    };
+    for style in [MaskStyle::Prefix2, MaskStyle::Suffix4] {
+        for text in ["ab", "abc"] {
+            let cfg = MaskConfig {
+                style,
+                user_rules: vec![short_rule.clone()],
+                ..default_config()
+            };
+            let e = evaluate(text, &cfg);
+            if text.chars().count() <= 2
+                || (style == MaskStyle::Suffix4 && text.chars().count() <= 4)
+            {
+                assert!(e.is_secret);
+                assert!(
+                    e.display.chars().all(|c| c == '\u{2022}'),
+                    "len <= keep must bullet everything (style={style:?}, text={text:?})"
+                );
+            }
+        }
+    }
+}
