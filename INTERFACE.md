@@ -43,6 +43,10 @@ Swift consumers use `bindings/swift/ClipySiCore` as a local SwiftPM package.
 committed. The generated Swift glue is committed and must stay in sync with the
 Rust FFI surface; CI verifies this with `git diff --exit-code` after rebuilding.
 
-While this repository remains private, macOS consumes the core as a pinned git
-submodule. Public distribution can later switch to a checksummed SwiftPM
-`binaryTarget(url:checksum:)` release asset without changing the Rust API.
+The public macOS repository consumes the core as a prebuilt binary: the
+XCFramework is zipped and published as a GitHub Release asset on the macOS
+repository, referenced by a checksummed SwiftPM `binaryTarget(url:checksum:)`
+(with a git-ignored local-XCFramework override for core development). The
+generated Swift glue committed there must stay byte-identical to the copy in
+this repository. Publishing a new core build means a new unique release
+tag/asset URL plus an updated checksum — never overwriting a published asset.
