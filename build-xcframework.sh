@@ -26,8 +26,8 @@ else
 fi
 
 echo "==> Building static libs ($PROFILE) for arm64 + x86_64"
-cargo build $CARGO_PROFILE_FLAG -p clipy-si-core-ffi --target aarch64-apple-darwin
-cargo build $CARGO_PROFILE_FLAG -p clipy-si-core-ffi --target x86_64-apple-darwin
+cargo build --locked $CARGO_PROFILE_FLAG -p clipy-si-core-ffi --target aarch64-apple-darwin
+cargo build --locked $CARGO_PROFILE_FLAG -p clipy-si-core-ffi --target x86_64-apple-darwin
 
 ARM64_LIB="target/aarch64-apple-darwin/$PROFILE_PATH/$LIB"
 X86_64_LIB="target/x86_64-apple-darwin/$PROFILE_PATH/$LIB"
@@ -41,8 +41,8 @@ lipo -create "$ARM64_LIB" "$X86_64_LIB" -output "$WORK/macos/$LIB"
 
 echo "==> Generating Swift bindings (library mode)"
 # Use the just-built dylib for metadata extraction (host arch debug dylib is enough).
-cargo build -p clipy-si-core-ffi >/dev/null
-cargo run --quiet --bin uniffi-bindgen -- generate \
+cargo build --locked -p clipy-si-core-ffi >/dev/null
+cargo run --locked --quiet --bin uniffi-bindgen -- generate \
   --library "target/debug/libclipy_si_core_ffi.dylib" \
   --language swift --out-dir "$WORK/gen"
 

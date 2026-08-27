@@ -1,0 +1,9 @@
+# Pinned toolchain for reproducible CI and release builds (plan §P2-2, checklist #5).
+# Single pinned toolchain instead of a separate MSRV claim: the core is consumed as a
+# prebuilt binary, never built by downstream Rust users, so an MSRV guarantee has no
+# consumer. Bump deliberately, in its own commit.
+[toolchain]
+channel = "1.96.0"
+components = ["rustfmt", "clippy"]
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+profile = "minimal"

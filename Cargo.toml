@@ -3,11 +3,10 @@ resolver = "2"
 members = ["crates/clipy-si-core", "crates/clipy-si-core-ffi"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/ClipySi/clipy-si-core"
-rust-version = "1.80"
 
 # Small, predictable release artifacts for the FFI builds (M8.2+).
 [profile.release]

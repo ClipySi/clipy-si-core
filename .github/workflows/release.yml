@@ -1,41 +1,138 @@
-# NOTE: this publishes a release on the PRIVATE core repo — an archival convenience only.
-# It is NOT the distribution path the macOS app consumes: the app's SwiftPM binaryTarget
-# points at an asset uploaded (manually, from the locally built zip whose checksum is the
-# one committed) to the PUBLIC clipy-si-macos repository's Releases. Pushing a tag here
-# does not update anything the app resolves.
 name: Release XCFramework
+
+# Tag-driven release pipeline (plan §P2-3, checklist #5/#12).
+#
+#   verify (ubuntu)  →  release (macos, environment-gated):
+#     tag/version/ancestor checks → build → Swift KAT → glue-diff check
+#     → zip + checksum → attest (SLSA provenance) → DRAFT release
+#
+# The draft is published manually only after the P4-7 verification passes
+# (gh attestation verify with --signer-workflow/--source-ref/--source-digest,
+# plus an ancestor check against a freshly fetched origin/main).
+#
+# Guarantee level is D7(a) — mistake-prevention and detection, NOT tamper-proof
+# against a compromised release admin: a tag push runs the workflow file AT THAT
+# TAG, so these in-workflow checks can be stripped by whoever can tag. The
+# protections that do not live in this file: the v* tag ruleset, the `release`
+# environment's required reviewer, branch protection on main, and the
+# verifier-side checks documented in the release body.
+#
+# All third-party actions are pinned to full commit SHAs.
 
 on:
   push:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
-    name: Build and publish XCFramework
-    runs-on: macos-latest
+  verify:
+    name: Rust fmt, clippy, tests, cargo-deny
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --locked
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          command: check
+
+  release:
+    name: Build, attest, and draft the release
+    needs: verify
+    runs-on: macos-15
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # full history for the ancestor check
+
+      - name: Tag matches workspace version
+        run: |
+          V=$(cargo metadata --format-version 1 --locked \
+              | python3 -c 'import json,sys; pk={p["name"]:p["version"] for p in json.load(sys.stdin)["packages"]}; print(pk["clipy-si-core"])')
+          [ "v$V" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME != workspace version $V"; exit 1; }
+
+      - name: Tag is an ancestor of main (mistake guard, not tamper-proof)
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "tag $GITHUB_REF_NAME ($GITHUB_SHA) is not on origin/main"; exit 1; }
+
       - name: Build XCFramework
         run: ./build-xcframework.sh
-      - name: Package XCFramework
+
+      - name: Swift KAT tests
+        working-directory: bindings/swift/ClipySiCore
+        run: swift test
+
+      - name: Generated bindings are current
+        run: git diff --exit-code
+
+      - name: Package and checksum
         run: |
           ditto -c -k --sequesterRsrc --keepParent \
             bindings/swift/ClipySiCore/ClipySiCoreFFI.xcframework \
             ClipySiCoreFFI.xcframework.zip
-          swift package compute-checksum ClipySiCoreFFI.xcframework.zip > CHECKSUMS.sha256
-          shasum -a 256 ClipySiCoreFFI.xcframework.zip >> CHECKSUMS.sha256
-      - name: Publish GitHub Release
+          SPM_CHECKSUM=$(swift package compute-checksum ClipySiCoreFFI.xcframework.zip)
+          SHA256=$(shasum -a 256 ClipySiCoreFFI.xcframework.zip | cut -d' ' -f1)
+          printf 'spm-checksum: %s\nsha256: %s\n' "$SPM_CHECKSUM" "$SHA256" > CHECKSUMS.txt
+          {
+            echo "SPM_CHECKSUM=$SPM_CHECKSUM"
+            echo "SHA256=$SHA256"
+          } >> "$GITHUB_ENV"
+
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ClipySiCoreFFI.xcframework.zip
+
+      - name: Create DRAFT release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          cat > release-notes.md <<EOF
+          ClipySiCore XCFramework ${GITHUB_REF_NAME} (draft until verified).
+
+          | build record | |
+          | --- | --- |
+          | source tag | \`${GITHUB_REF_NAME}\` |
+          | commit | \`${GITHUB_SHA}\` |
+          | rustc | \`$(rustc --version)\` |
+          | Xcode | \`$(xcodebuild -version | tr '\n' ' ')\` |
+          | runner | \`${ImageOS:-macos-15} ${ImageVersion:-}\` |
+          | targets | \`aarch64-apple-darwin + x86_64-apple-darwin (universal)\` |
+          | SwiftPM checksum | \`${SPM_CHECKSUM}\` |
+          | sha256 | \`${SHA256}\` |
+
+          Verify (third parties can run the same commands):
+
+          \`\`\`sh
+          git fetch --no-tags origin main
+          TAG_SHA=\$(git rev-list -n1 ${GITHUB_REF_NAME})
+          gh attestation verify ClipySiCoreFFI.xcframework.zip \\
+            --repo ClipySi/clipy-si-core \\
+            --signer-workflow ClipySi/clipy-si-core/.github/workflows/release.yml \\
+            --source-ref "refs/tags/${GITHUB_REF_NAME}" \\
+            --source-digest "\$TAG_SHA" \\
+            --deny-self-hosted-runners
+          git merge-base --is-ancestor "\$TAG_SHA" origin/main && echo "tag is on main"
+          swift package compute-checksum ClipySiCoreFFI.xcframework.zip  # expect: ${SPM_CHECKSUM}
+          \`\`\`
+          EOF
           gh release create "${GITHUB_REF_NAME}" \
             ClipySiCoreFFI.xcframework.zip \
-            CHECKSUMS.sha256 \
+            CHECKSUMS.txt \
+            --draft \
             --title "ClipySi Core ${GITHUB_REF_NAME}" \
-            --notes "ClipySiCore XCFramework release for ${GITHUB_REF_NAME}."
+            --notes-file release-notes.md
